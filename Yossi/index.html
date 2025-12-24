@@ -1,1 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Dreamy Silver Xmas 2026 - Luminary Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
+    <style>
+        :root { --lavender: #E6E6FA; --soft-purple: #D8BFD8; --pink-pearl: #FFD1DC; --silver: #F5F5F7; --glass: rgba(10, 10, 15, 0.95); }
+        body { margin: 0; background: #050507; overflow: hidden; font-family: sans-serif; color: white; cursor: crosshair; }
+        
+        /* 调整左侧文案位置：向右移动并增加行高 */
+        #header-msg {
+            position: fixed; 
+            top: 12%; 
+            left: 120px; /* 增加左边距，使其更靠右 */
+            z-index: 200;
+            font-family: "STKaiti", "楷体", "Kaiti", serif;
+            line-height: 2.8; /* 增加行间距产生呼吸感 */
+            opacity: 0; 
+            transition: opacity 2.5s ease-in-out;
+            pointer-events: none; 
+            text-shadow: 0 0 20px rgba(230,230,250,0.4);
+        }
+        #header-msg h2 { font-size: 2.4rem; margin: 0 0 25px 0; color: var(--lavender); letter-spacing: 5px; }
+        #header-msg p { 
+            font-size: 1.15rem; /* 略微缩小字号提升高级感 */
+            margin: 5px 0; 
+            color: rgba(255,255,255,0.7); 
+            white-space: pre-line; 
+            font-weight: 300; 
+            letter-spacing: 2px;
+        }
+
+        #ui { 
+            position: fixed; inset: 0; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; z-index: 300;
+            background: var(--glass); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+            transition: opacity 1.5s;
+        }
+        .title-en { font-family: 'Playfair Display', serif; font-size: 3.5rem; font-style: italic; margin-bottom: 10px; letter-spacing: 3px; color: var(--silver); }
+        .title-cn { font-family: serif; color: var(--soft-purple); font-size: 1.1rem; margin-bottom: 60px; letter-spacing: 10px; opacity: 0.8; }
+        .btn { padding: 22px 70px; border: 1px solid rgba(230,230,250,0.4); color: white; background: transparent; cursor: pointer; letter-spacing: 5px; transition: 0.6s; font-size: 1rem; border-radius: 4px; }
+        .btn:hover { background: white; color: #000; box-shadow: 0 0 50px rgba(255,255,255,0.5); border-color: white; }
+
+        #video-preview { position: fixed; bottom: 30px; left: 30px; width: 160px; height: 120px; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; transform: scaleX(-1); display: none; z-index: 50; opacity: 0.3; }
+    </style>
+</head>
+<body>
+
+    <div id="header-msg">
+        <h2>祝佑熙：</h2>
+        <p>圣诞快乐 & 新年快乐！
+        感谢你这一年的陪伴与支持。
+        感谢你愿意体会汉语中那些细微而有趣的差别，
+        也感谢你与我分享你的人生经验与思考。
+
+        愿新的一年里，
+        学术与生活都能如繁星般明亮，
+        平安、喜乐，一切顺遂！
+        笑一笑，十年少 ～ </p>
+    </div>
+
+    <div id="ui">
+        <div class="title-en">Thank you for your support</div>
+        <div class="title-cn">星辰指引 岁序更新</div>
+        <button class="btn" id="btn-start">开启全新2026</button>
+    </div>
+
+    <video id="video-preview" playsinline></video>
+
+    <script>
+        let scene, camera, renderer, clock, leaves, star, pearls, ornaments, starGlow, snowflakes, yearText, greetings;
+        let isGathered = false, smoothFactor = 0;
+        let rotationVelocity = 0.005;
+        let lastHandX = 0.5;
+        const friction = 0.98, baseSpeed = 0.006;
+        const THEME_GOLD = '#EAD8B1';
+
+        function init() {
+            scene = new THREE.Scene();
+            // 调整视角：让相机稍微向下看，从而视觉上让树往上移
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 4, 38); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            clock = new THREE.Clock();
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5)); // 略微增加亮度
+            const p1 = new THREE.PointLight(0xE6E6FA, 2.5, 100); p1.position.set(20, 20, 15); scene.add(p1);
+            const p2 = new THREE.PointLight(0xFFD1DC, 1.8, 100); p2.position.set(-20, 15, 15); scene.add(p2);
+
+            createTree();
+            createOrnaments();
+            createPinkPearls(); 
+            createStar();
+            createSnowflakes();
+            createYear2026();
+            createGreetings(); 
+            
+            animate();
+        }
+
+        function createStar() {
+            const shape = new THREE.Shape();
+            const pts = 5, out = 1.5, inn = 0.7;
+            for(let i=0; i<pts*2; i++){
+                let r = i%2==0 ? out : inn;
+                let a = (i*Math.PI)/pts - Math.PI/2;
+                i==0 ? shape.moveTo(Math.cos(a)*r, Math.sin(a)*r) : shape.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+            }
+            const starGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05 });
+            
+            const starMat = new THREE.MeshStandardMaterial({ 
+                color: THEME_GOLD, 
+                transparent: true,
+                opacity: 0.7,
+                metalness: 1.0, 
+                roughness: 0.1, 
+                emissive: THEME_GOLD, 
+                emissiveIntensity: 1.0,
+                blending: THREE.AdditiveBlending
+            });
+            star = new THREE.Mesh(starGeo, starMat);
+            star.position.y = 10.5; // 略微调高树尖星
+            scene.add(star);
+
+            const spriteMat = new THREE.SpriteMaterial({
+                map: createGlowTexture(), 
+                color: THEME_GOLD, 
+                transparent: true, 
+                opacity: 0.6, 
+                blending: THREE.AdditiveBlending
+            });
+            starGlow = new THREE.Sprite(spriteMat);
+            starGlow.scale.set(12, 12, 1);
+            star.add(starGlow);
+        }
+
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.2, 'rgba(234,216,177,0.8)');
+            grad.addColorStop(0.5, 'rgba(234,216,177,0.2)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad; ctx.fillRect(0,0,128,128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createGreetings() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'italic 75px "Playfair Display", serif';
+            
+            const gradient = ctx.createLinearGradient(300, 200, 700, 350);
+            gradient.addColorStop(0, '#B09A6A');   
+            gradient.addColorStop(0.5, '#FFFFFF'); 
+            gradient.addColorStop(1, '#8A764B');   
+
+            ctx.shadowColor = 'rgba(234, 216, 177, 0.9)'; 
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = gradient;
+
+            ctx.fillText('Merry Christmas', 512, 180);
+            ctx.font = 'italic 85px "Playfair Display", serif';
+            ctx.fillText('Happy New Year', 512, 310);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ 
+                map: tex, 
+                transparent: true, 
+                opacity: 0,
+                blending: THREE.AdditiveBlending 
+            });
+            greetings = new THREE.Sprite(mat);
+            greetings.position.set(13, 1, 5); 
+            greetings.scale.set(20, 10, 1);
+            scene.add(greetings);
+        }
+
+        function createPinkPearls() {
+            const count = 350; 
+            const geo = new THREE.SphereGeometry(0.12, 16, 16); 
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0xFFD1DC, 
+                metalness: 0.3, 
+                roughness: 0.1,
+                transparent: true,
+                opacity: 0.8,
+                emissive: 0xFFB6C1, 
+                emissiveIntensity: 0.2
+            });
+            pearls = new THREE.InstancedMesh(geo, mat, count);
+            const offsets = [];
+            for(let i=0; i<count; i++) { offsets.push(Math.random() * 0.8); }
+            pearls.userData = { offsets };
+            scene.add(pearls);
+        }
+
+        function createTree() {
+            const count = 4000;
+            const geo = new THREE.OctahedronGeometry(0.2, 0);
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0xCACAE6, 
+                metalness: 0.6, 
+                roughness: 0.5,
+                emissive: 0x3A2A55, 
+                emissiveIntensity: 0.15
+            });
+            leaves = new THREE.InstancedMesh(geo, mat, count);
+            const targets = [], randoms = [];
+            for (let i = 0; i < count; i++) {
+                const t = i / count;
+                const angle = t * Math.PI * 50; 
+                const radius = (1 - t) * 7.2;
+                // 树整体上移：t*16-8 改为 t*16-7
+                targets.push(new THREE.Vector3(Math.cos(angle)*radius, t*16 - 7, Math.sin(angle)*radius));
+                randoms.push(new THREE.Vector3((Math.random()-0.5)*120, (Math.random()-0.5)*120, (Math.random()-0.5)*120));
+            }
+            leaves.userData = { targets, randoms };
+            scene.add(leaves);
+        }
+
+        function createOrnaments() {
+            ornaments = new THREE.Group();
+            const colors = [0xFFD1DC, 0xE6E6FA, 0xFFFFFF]; 
+            for(let i=0; i<70; i++) {
+                const geo = new THREE.SphereGeometry(0.25, 12, 12);
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: colors[i % 3], metalness: 0.9, roughness: 0.1,
+                    emissive: colors[i % 3], emissiveIntensity: 0.3
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                const t = Math.random();
+                const angle = Math.random() * Math.PI * 2;
+                const radius = (1 - t) * 7.2;
+                mesh.userData.targetPos = new THREE.Vector3(Math.cos(angle)*radius, t*15.5 - 6.7, Math.sin(angle)*radius);
+                mesh.userData.randomPos = new THREE.Vector3((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*100);
+                ornaments.add(mesh);
+            }
+            scene.add(ornaments);
+        }
+
+        function createSnowflakes() {
+            const count = 4500;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            const vels = [];
+            for(let i=0; i<count; i++) {
+                pos[i*3] = (Math.random()-0.5)*100;
+                pos[i*3+1] = Math.random()*60 - 20;
+                pos[i*3+2] = (Math.random()-0.5)*100;
+                vels.push(Math.random()*0.05 + 0.02);
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            snowflakes = new THREE.Points(geo, new THREE.PointsMaterial({ 
+                color: 0xffffff, size: 0.3, transparent: true, opacity: 0.6, map: createGlowTexture(), blending: THREE.AdditiveBlending 
+            }));
+            snowflakes.userData = { vels };
+            scene.add(snowflakes);
+        }
+
+        function createYear2026() {
+            yearText = new THREE.Group();
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.font = 'italic bold 100px "Playfair Display", serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#FFD1DC';
+            ctx.shadowBlur = 35;
+            ctx.fillText('2026', 256, 160);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.9 });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(5.5, 2.75, 1);
+            // 移到星星下方：星星在 10.5，2026 放在 8.8 处更紧凑
+            sprite.position.set(4, 8.8, 0); 
+            yearText.add(sprite);
+            scene.add(yearText);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            rotationVelocity *= friction;
+            if(Math.abs(rotationVelocity) < baseSpeed) rotationVelocity = baseSpeed;
+            
+            const commonRot = leaves.rotation.y + rotationVelocity;
+            leaves.rotation.y = ornaments.rotation.y = pearls.rotation.y = commonRot;
+            star.rotation.y += rotationVelocity * 1.5;
+
+            smoothFactor += ((isGathered ? 1 : 0) - smoothFactor) * 0.05;
+            const dummy = new THREE.Object3D();
+
+            for (let i = 0; i < leaves.count; i++) {
+                dummy.position.lerpVectors(leaves.userData.randoms[i], leaves.userData.targets[i], smoothFactor);
+                dummy.scale.setScalar(smoothFactor * (0.8 + Math.sin(time + i)*0.2));
+                dummy.updateMatrix();
+                leaves.setMatrixAt(i, dummy.matrix);
+            }
+            leaves.instanceMatrix.needsUpdate = true;
+
+            ornaments.children.forEach((m) => {
+                m.position.lerpVectors(m.userData.randomPos, m.userData.targetPos, smoothFactor);
+                m.scale.setScalar(smoothFactor);
+            });
+
+            for(let i=0; i<pearls.count; i++) {
+                const t = i / pearls.count;
+                const angle = t * Math.PI * 12 + time * 0.4; 
+                const airGap = 0.8 + Math.sin(time + i * 0.1) * 0.2;
+                const radius = ((Math.pow(1-t, 1.1) * 8.0) + airGap) * smoothFactor;
+                
+                // 珠链也同步上移
+                dummy.position.set(Math.cos(angle)*radius, t*17 - 7.5, Math.sin(angle)*radius);
+                const pulse = 0.8 + Math.sin(time * 3 + i) * 0.2;
+                dummy.scale.setScalar(smoothFactor * pulse);
+                dummy.updateMatrix();
+                pearls.setMatrixAt(i, dummy.matrix);
+            }
+            pearls.instanceMatrix.needsUpdate = true;
+
+            if (greetings) {
+                const shimmer = (0.75 + Math.sin(time * 1.5) * 0.25);
+                greetings.material.opacity = smoothFactor * shimmer * 0.8;
+                greetings.position.y = 1.5 + Math.sin(time * 0.8) * 0.4; 
+            }
+
+            const starPulse = 1 + Math.sin(time * 3) * 0.1;
+            star.scale.setScalar(smoothFactor * starPulse);
+            starGlow.material.opacity = (0.4 + Math.sin(time*3)*0.2) * smoothFactor;
+            yearText.scale.setScalar(smoothFactor);
+
+            const positions = snowflakes.geometry.attributes.position.array;
+            for(let i=0; i<snowflakes.userData.vels.length; i++) {
+                positions[i*3+1] -= snowflakes.userData.vels[i];
+                if(positions[i*3+1] < -25) positions[i*3+1] = 35;
+                positions[i*3] += Math.sin(time * 0.4 + i) * 0.02;
+            }
+            snowflakes.geometry.attributes.position.needsUpdate = true;
+
+            // 保持视角锁定
+            camera.lookAt(0, 4, 0); 
+            renderer.render(scene, camera);
+        }
+
+        document.getElementById('btn-start').onclick = function() {
+            document.getElementById('ui').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('ui').style.display = 'none';
+                document.getElementById('header-msg').style.opacity = '1';
+            }, 1500);
+            startHandTracking();
+        };
+
+        async function startHandTracking() {
+            const videoElement = document.getElementById('video-preview');
+            const hands = new Hands({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+            
+            hands.onResults(results => {
+                if (results.multiHandLandmarks?.length > 0) {
+                    const lm = results.multiHandLandmarks[0];
+                    const dist = Math.sqrt(Math.pow(lm[8].x-lm[4].x, 2) + Math.pow(lm[8].y-lm[4].y, 2));
+                    isGathered = dist < 0.12; 
+                    const deltaX = lm[8].x - lastHandX;
+                    if(Math.abs(deltaX) > 0.005) rotationVelocity = -deltaX * 3.5;
+                    lastHandX = lm[8].x;
+                } else { isGathered = false; }
+            });
+
+            const cam = new Camera(videoElement, { onFrame: async () => await hands.send({image: videoElement}), width: 640, height: 480 });
+            try { await cam.start(); videoElement.style.display = 'block'; } 
+            catch(e) { isGathered = true; }
+        }
+
+        window.onload = init;
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+    </script>
+</body>
+</html>
